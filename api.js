@@ -17,24 +17,28 @@ if (!MONGO_URL) {
 }
 
 const client = new MongoClient(MONGO_URL)
-
 await client.connect()
 
 const db = client.db("demonSlayer")
 
 console.log("✅ MongoDB Connected")
 
-/* ================= HELPERS ================= */
+/* ================= CLEAN DOC ================= */
 
 function cleanDoc(doc) {
   if (!doc) return null
+
   const { _id, ...rest } = doc
-  return rest
+
+  return {
+    id: _id,
+    ...rest
+  }
 }
 
 /* ================= ROUTES ================= */
 
-/* ===== GET DOCUMENT ===== */
+/* ===== GET ===== */
 app.get("/:collection/:id", async (req, res) => {
   try {
     const { collection, id } = req.params
@@ -72,16 +76,24 @@ app.post("/:collection/:id", async (req, res) => {
         ? { ...old, ...data }
         : { ...data }
 
+      // 🔥 ensure id field exists
+      newData.id = id
+
       await ref.updateOne(
         { _id: id },
-        { $set: { ...newData, _id: id } },
+        { $set: newData },
         { upsert: true }
       )
     } else {
-      // FULL overwrite like Firebase set()
+      // overwrite like Firebase
+      const newData = {
+        ...data,
+        id: id
+      }
+
       await ref.replaceOne(
         { _id: id },
-        { ...data, _id: id },
+        newData,
         { upsert: true }
       )
     }
@@ -94,7 +106,7 @@ app.post("/:collection/:id", async (req, res) => {
   }
 })
 
-/* ===== UPDATE (PARTIAL UPDATE) ===== */
+/* ===== UPDATE ===== */
 app.patch("/:collection/:id", async (req, res) => {
   try {
     const { collection, id } = req.params
@@ -104,7 +116,12 @@ app.patch("/:collection/:id", async (req, res) => {
       return res.status(400).json({ error: "Missing data" })
     }
 
-    await db.collection(collection).updateOne(
+    const ref = db.collection(collection)
+
+    // 🔥 always keep id field
+    data.id = id
+
+    await ref.updateOne(
       { _id: id },
       { $set: data },
       { upsert: false }
@@ -118,7 +135,7 @@ app.patch("/:collection/:id", async (req, res) => {
   }
 })
 
-/* ===== DELETE (OPTIONAL FIREBASE FEATURE) ===== */
+/* ===== DELETE ===== */
 app.delete("/:collection/:id", async (req, res) => {
   try {
     const { collection, id } = req.params
