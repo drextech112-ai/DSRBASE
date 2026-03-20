@@ -9,7 +9,7 @@ app.use(bodyParser.json())
 
 /* ================= DATABASE ================= */
 
-const MONGO_URL = process.env.MONGO_URL
+const MONGO_URL = "mongodb+srv://Demon-slayer:xx26bGZt0ujXdGvQ@cluster0.xmdvwco.mongodb.net/?appName=Cluster0"
 
 const client = new MongoClient(MONGO_URL)
 await client.connect()
