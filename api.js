@@ -11,11 +11,6 @@ app.use(bodyParser.json())
 
 const MONGO_URL = "mongodb+srv://Demon-slayer:xx26bGZt0ujXdGvQ@cluster0.xmdvwco.mongodb.net/?appName=Cluster0"
 
-if (!MONGO_URL) {
-  console.error("❌ MONGO_URL missing")
-  process.exit(1)
-}
-
 const client = new MongoClient(MONGO_URL)
 await client.connect()
 
@@ -23,22 +18,34 @@ const db = client.db("demonSlayer")
 
 console.log("✅ MongoDB Connected")
 
-/* ================= CLEAN DOC ================= */
+/* ================= HELPERS ================= */
 
 function cleanDoc(doc) {
   if (!doc) return null
-
   const { _id, ...rest } = doc
+  return { id: _id, ...rest }
+}
 
-  return {
-    id: _id,
-    ...rest
+// 🔥 Firebase-like increment support
+function applySpecialFields(old = {}, data = {}) {
+  const result = { ...data }
+
+  for (const key in data) {
+    if (
+      typeof data[key] === "object" &&
+      data[key] !== null &&
+      data[key].__op === "inc"
+    ) {
+      result[key] = (old[key] || 0) + data[key].value
+    }
   }
+
+  return result
 }
 
 /* ================= ROUTES ================= */
 
-/* ===== GET ===== */
+/* ===== GET DOC ===== */
 app.get("/:collection/:id", async (req, res) => {
   try {
     const { collection, id } = req.params
@@ -51,32 +58,59 @@ app.get("/:collection/:id", async (req, res) => {
       exists: true,
       data: cleanDoc(data)
     })
+
   } catch (err) {
     console.error("GET ERROR:", err)
     res.status(500).json({ error: "GET FAILED" })
   }
 })
 
-/* ===== SET (WITH MERGE SUPPORT) ===== */
+/* ===== GET ALL DOCS (🔥 NEW) ===== */
+app.get("/:collection", async (req, res) => {
+  try {
+    const { collection } = req.params
+
+    const docs = await db.collection(collection).find().toArray()
+
+    res.json({
+      count: docs.length,
+      data: docs.map(cleanDoc)
+    })
+
+  } catch (err) {
+    console.error("GET ALL ERROR:", err)
+    res.status(500).json({ error: "GET ALL FAILED" })
+  }
+})
+
+/* ===== SET DOC (FIREBASE STYLE) ===== */
 app.post("/:collection/:id", async (req, res) => {
   try {
     const { collection, id } = req.params
-    const { data, merge } = req.body
+
+    // 🔥 ACCEPT BOTH FORMATS
+    let { data, merge } = req.body
 
     if (!data) {
-      return res.status(400).json({ error: "Missing data" })
+      data = req.body // fallback (your current website)
+    }
+
+    if (!data || typeof data !== "object") {
+      return res.status(400).json({ error: "Invalid data" })
     }
 
     const ref = db.collection(collection)
 
     if (merge) {
-      const old = await ref.findOne({ _id: id })
+      const old = await ref.findOne({ _id: id }) || {}
 
-      const newData = old
-        ? { ...old, ...data }
-        : { ...data }
+      let newData = {
+        ...old,
+        ...data
+      }
 
-      // 🔥 ensure id field exists
+      newData = applySpecialFields(old, newData)
+
       newData.id = id
 
       await ref.updateOne(
@@ -84,12 +118,14 @@ app.post("/:collection/:id", async (req, res) => {
         { $set: newData },
         { upsert: true }
       )
+
     } else {
-      // overwrite like Firebase
-      const newData = {
+      let newData = {
         ...data,
         id: id
       }
+
+      newData = applySpecialFields({}, newData)
 
       await ref.replaceOne(
         { _id: id },
@@ -106,24 +142,32 @@ app.post("/:collection/:id", async (req, res) => {
   }
 })
 
-/* ===== UPDATE ===== */
+/* ===== UPDATE DOC ===== */
 app.patch("/:collection/:id", async (req, res) => {
   try {
     const { collection, id } = req.params
-    const { data } = req.body
+
+    let { data } = req.body
 
     if (!data) {
-      return res.status(400).json({ error: "Missing data" })
+      data = req.body // fallback
+    }
+
+    if (!data || typeof data !== "object") {
+      return res.status(400).json({ error: "Invalid data" })
     }
 
     const ref = db.collection(collection)
 
-    // 🔥 always keep id field
-    data.id = id
+    const old = await ref.findOne({ _id: id }) || {}
+
+    let newData = applySpecialFields(old, data)
+
+    newData.id = id
 
     await ref.updateOne(
       { _id: id },
-      { $set: data },
+      { $set: newData },
       { upsert: false }
     )
 
@@ -135,7 +179,7 @@ app.patch("/:collection/:id", async (req, res) => {
   }
 })
 
-/* ===== DELETE ===== */
+/* ===== DELETE DOC ===== */
 app.delete("/:collection/:id", async (req, res) => {
   try {
     const { collection, id } = req.params
@@ -143,6 +187,7 @@ app.delete("/:collection/:id", async (req, res) => {
     await db.collection(collection).deleteOne({ _id: id })
 
     res.json({ success: true })
+
   } catch (err) {
     console.error("DELETE ERROR:", err)
     res.status(500).json({ error: "DELETE FAILED" })
