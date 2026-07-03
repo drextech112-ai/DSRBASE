@@ -568,7 +568,7 @@ app.use((req, res) => {
 /* ================= START ================= */
 
 app.listen(PORT, () => {
-  console.log(`🚀 Demon Slayer Reincarnated API running on port ${PORT}`)
+  console.log(`🚀 Demon Slayer Reincarnated API V1 running on port ${PORT}`)
   console.log("🔐 DEXA - XD SYSTEM Security Enabled")
   console.log("⚡ High Speed Cache/Response Enabled")
 })
