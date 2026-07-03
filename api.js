@@ -129,6 +129,17 @@ function apiKeyMiddleware(req, res, next) {
       req.headers["authorization"]?.replace("Bearer ", "") ||
       req.query.api_key
 
+    // ================= DEBUG =================
+    console.log("============== API AUTH DEBUG ==============");
+    console.log("Expected:", JSON.stringify(API_KEY));
+    console.log("Received:", JSON.stringify(providedKey));
+    console.log("Expected Length:", API_KEY.length);
+    console.log("Received Length:", providedKey?.length);
+    console.log("Equal:", providedKey === API_KEY);
+    console.log("Headers:", req.headers);
+    console.log("============================================");
+    // =========================================
+
     if (!providedKey) {
       return res.status(403).json({
         success: false,
