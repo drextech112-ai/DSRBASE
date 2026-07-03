@@ -31,7 +31,6 @@ const PORT = process.env.PORT || 3000
 */
 
 const API_KEY =
-  process.env.API_KEY ||
   "DSR_9fA7xQwLmP2vNcY8kRtB4sZhE6uJiX3mAaT1oP==CREATED-BY-DREXMOND"
 
 /* ================= DATABASE ================= */
